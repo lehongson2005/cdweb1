@@ -4,95 +4,115 @@ require_once 'BaseModel.php';
 
 class UserModel extends BaseModel {
 
+    /**
+     * Find user by ID
+     */
     public function findUserById($id) {
-        $sql = 'SELECT * FROM users WHERE id = '.$id;
-        $user = $this->select($sql);
-
-        return $user;
-    }
-
-    public function findUser($keyword) {
-        $sql = 'SELECT * FROM users WHERE user_name LIKE %'.$keyword.'%'. ' OR user_email LIKE %'.$keyword.'%';
-        $user = $this->select($sql);
+        $stmt = self::$_connection->prepare("SELECT * FROM users WHERE id = ?");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $user = $res->fetch_assoc();
+        $stmt->close();
 
         return $user;
     }
 
     /**
-     * Authentication user
-     * @param $userName
-     * @param $password
-     * @return array
+     * Find user by keyword (username or email)
+     */
+    public function findUser($keyword) {
+        $stmt = self::$_connection->prepare(
+            "SELECT * FROM users WHERE user_name LIKE ? OR user_email LIKE ?"
+        );
+        $likeKeyword = "%$keyword%";
+        $stmt->bind_param("ss", $likeKeyword, $likeKeyword);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $users = $res->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        return $users;
+    }
+
+    /**
+     * Authenticate user
      */
     public function auth($userName, $password) {
-        $md5Password = md5($password);
-        $sql = 'SELECT * FROM users WHERE name = "' . $userName . '" AND password = "'.$md5Password.'"';
+        $md5Password = md5($password); // Bạn có thể đổi sang password_hash() cho bảo mật tốt hơn
+        $stmt = self::$_connection->prepare(
+            "SELECT * FROM users WHERE name = ? AND password = ?"
+        );
+        $stmt->bind_param("ss", $userName, $md5Password);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $user = $res->fetch_assoc();
+        $stmt->close();
 
-        $user = $this->select($sql);
         return $user;
     }
 
     /**
-     * Delete user by id
-     * @param $id
-     * @return mixed
+     * Delete user by ID
+     * Chỉ gọi khi request là POST + CSRF token hợp lệ
      */
     public function deleteUserById($id) {
-        $sql = 'DELETE FROM users WHERE id = '.$id;
-        return $this->delete($sql);
+        $stmt = self::$_connection->prepare("DELETE FROM users WHERE id = ?");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $affectedRows = $stmt->affected_rows;
+        $stmt->close();
 
+        return $affectedRows;
     }
 
     /**
      * Update user
-     * @param $input
-     * @return mixed
      */
     public function updateUser($input) {
-        $sql = 'UPDATE users SET 
-                 name = "' . mysqli_real_escape_string(self::$_connection, $input['name']) .'", 
-                 password="'. md5($input['password']) .'"
-                WHERE id = ' . $input['id'];
+        $stmt = self::$_connection->prepare(
+            "UPDATE users SET name = ?, password = ? WHERE id = ?"
+        );
+        $hashedPassword = md5($input['password']); // Hoặc password_hash()
+        $stmt->bind_param("ssi", $input['name'], $hashedPassword, $input['id']);
+        $stmt->execute();
+        $affectedRows = $stmt->affected_rows;
+        $stmt->close();
 
-        $user = $this->update($sql);
-
-        return $user;
+        return $affectedRows;
     }
 
     /**
      * Insert user
-     * @param $input
-     * @return mixed
      */
     public function insertUser($input) {
-        $sql = "INSERT INTO `app_web1`.`users` (`name`, `password`) VALUES (" .
-                "'" . $input['name'] . "', '".md5($input['password'])."')";
+        $stmt = self::$_connection->prepare(
+            "INSERT INTO users (name, password) VALUES (?, ?)"
+        );
+        $hashedPassword = md5($input['password']); // Hoặc password_hash()
+        $stmt->bind_param("ss", $input['name'], $hashedPassword);
+        $stmt->execute();
+        $insertId = $stmt->insert_id;
+        $stmt->close();
 
-        $user = $this->insert($sql);
-
-        return $user;
+        return $insertId;
     }
 
     /**
-     * Search users
-     * @param array $params
-     * @return array
+     * Get all users or search by keyword
      */
     public function getUsers($params = []) {
-        //Keyword
         if (!empty($params['keyword'])) {
-            $sql = 'SELECT * FROM users WHERE name LIKE "%' . $params['keyword'] .'%"';
-
-            //Keep this line to use Sql Injection
-            //Don't change
-            //Example keyword: abcef%";TRUNCATE banks;##
-            $users = self::$_connection->multi_query($sql);
-
-            //Get data
-            $users = $this->query($sql);
+            $stmt = self::$_connection->prepare("SELECT * FROM users WHERE name LIKE ?");
+            $keyword = "%".$params['keyword']."%";
+            $stmt->bind_param("s", $keyword);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $users = $res->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
         } else {
-            $sql = 'SELECT * FROM users';
-            $users = $this->select($sql);
+            $res = self::$_connection->query("SELECT * FROM users");
+            $users = $res->fetch_all(MYSQLI_ASSOC);
         }
 
         return $users;
