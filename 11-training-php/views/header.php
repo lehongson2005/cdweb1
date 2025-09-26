@@ -46,8 +46,8 @@ if (!empty($_SESSION['message'])) {
 
             <form class="navbar-form navbar-left" method="get" action="list_users.php">
                 <div class="form-group">
-                    <input type="text" name="keyword" class="form-control" placeholder="Search users"
-                           value="<?php echo $keyword; ?>">
+                    <input type="search" name="keyword" value="<?php echo htmlspecialchars($params['keyword'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE); ?>" />
+
                 </div>
                 <button type="submit" class="btn btn-default">Search</button>
             </form>
