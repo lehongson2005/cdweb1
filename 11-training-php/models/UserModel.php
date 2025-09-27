@@ -19,11 +19,11 @@ class UserModel extends BaseModel {
     }
 
     /**
-     * Find user by username for authentication (returns password_hash)
+     * Find user by username for authentication (returns password)
      */
     public function findByUsernameForAuth(string $username) {
         $stmt = self::$_connection->prepare(
-            "SELECT id, password_hash, name FROM users WHERE name = ?"
+            "SELECT id, password, name FROM users WHERE name = ?"
         );
         $stmt->bind_param("s", $username);
         $stmt->execute();
@@ -57,7 +57,7 @@ class UserModel extends BaseModel {
     public function auth($userName, $password) {
         // Cập nhật để sử dụng password_verify()
         $user = $this->findByUsernameForAuth($userName);
-        if ($user && password_verify($password, $user['password_hash'])) {
+        if ($user && password_verify($password, $user['password'])) {
             return $user;
         }
         return null;
@@ -84,8 +84,8 @@ class UserModel extends BaseModel {
         $params = [$data['name']];
         
         if (!empty($data['password'])) {
-            $sql .= ", password_hash = ?";
-            $params[] = password_hash($data['password'], PASSWORD_DEFAULT);
+            $sql .= ", password = ?";
+            $params[] = password($data['password'], PASSWORD_DEFAULT);
         }
 
         $sql .= " WHERE id = ?";
@@ -109,7 +109,7 @@ class UserModel extends BaseModel {
         $stmt = self::$_connection->prepare(
             "INSERT INTO users (name, fullname, email, password, type, version) VALUES (?, ?, ?, ?, ?, ?)"
         );
-        $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
+        $hashedPassword = password($data['password'], PASSWORD_DEFAULT);
         $fullname = '';
         $email = '';
         $type = 'user';
